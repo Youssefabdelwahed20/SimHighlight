@@ -1,0 +1,75 @@
+import os
+import glob
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from nltk.tokenize import sent_tokenize
+from sklearn.preprocessing import minmax_scale
+import colorsys
+
+# Function to convert similarity to color
+def similarity_to_color(similarity):
+    # Scale similarity to a range of [0, 1]
+    scaled_similarity = minmax_scale([similarity], feature_range=(0.0, 1.0))[0]
+    # Convert to RGB values
+    h = 0.4  # Fixed hue for the color (greenish color)
+    l = 0.5 + 0.5 * scaled_similarity  # Lightness
+    s = 0.8  # Fixed saturation for the color
+    rgb = colorsys.hls_to_rgb(h, l, s)
+    return f'rgb({int(rgb[0]*255)}, {int(rgb[1]*255)}, {int(rgb[2]*255)})'
+
+# Function to highlight sentences in HTML
+def highlight_sentences(file_paths):
+    sentences = []
+    file_sentences = {}
+    
+    # Read files and split into sentences
+    for file_path in file_paths:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            text = file.read()
+            file_sentences[file_path] = sent_tokenize(text)
+            sentences.extend(file_sentences[file_path])
+    
+    # Vectorize sentences
+    vectorizer = TfidfVectorizer().fit_transform(sentences)
+    vectors = vectorizer.toarray()
+    
+    # Calculate similarity matrix
+    similarity_matrix = cosine_similarity(vectors)
+    
+    # Generate HTML content
+    html_content = '<html><body>'
+    for file_path in file_paths:
+        html_content += f'<h1>{os.path.basename(file_path)}</h1><p>'
+        for i, sentence in enumerate(file_sentences[file_path]):
+            # Calculate similarity with the most similar sentence
+            similarities = similarity_matrix[i]
+            max_similarity = max(similarities)
+            color = similarity_to_color(max_similarity)
+            html_content += f'<span style="background-color:{color}">{sentence}</span> '
+        html_content += '</p>'
+    html_content += '</body></html>'
+    
+    return html_content
+
+# Function to save the highlighted content to an HTML file
+def save_html(content, output_path):
+    with open(output_path, 'w', encoding='utf-8') as file:
+        file.write(content)
+
+# Main function
+def main(input_folder, output_file):
+    # Get all text file paths from the input folder
+    file_paths = glob.glob(os.path.join(input_folder, '*.txt'))
+    
+    # Generate highlighted HTML content
+    highlighted_content = highlight_sentences(file_paths)
+    
+    # Save the HTML content to a file
+    save_html(highlighted_content, output_file)
+    print(f'Highlighted HTML saved to {output_file}')
+
+if __name__ == '__main__':
+    input_folder = 'input_texts'  # Folder containing text files
+    output_file = 'highlighted_sentences.html'  # Output HTML file
+    main(input_folder, output_file)
